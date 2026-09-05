@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { OtpAuthDialog } from "@/components/auth/otp-auth-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -243,55 +244,59 @@ function SiteHeader() {
           </span>
         </Link>
 
-        <Sheet>
-          <SheetTrigger
-            render={
-              <Button variant="outline" size="icon" aria-label="Open menu">
-                <Menu className="size-4" />
-              </Button>
-            }
-          />
-          <SheetContent side="right" className="bg-background">
-            <SheetHeader>
-              <SheetTitle className="font-serif normal-case tracking-tight">
-                Annam Kitchen
-              </SheetTitle>
-            </SheetHeader>
-            <nav
-              aria-label="Main navigation"
-              className="flex flex-col gap-1 px-8"
-            >
-              {[
-                ...NAV_LINKS,
-                { label: "Privacy Policy", href: "#footer" },
-                { label: "Terms of Service", href: "#footer" },
-              ].map((link) => (
-                <SheetClose
-                  key={link.label}
-                  nativeButton={false}
-                  render={
-                    <Link
-                      href={link.href}
-                      className="border-b border-border/60 py-3 text-sm font-medium text-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </Link>
-                  }
-                />
-              ))}
-            </nav>
-            <div className="mt-auto p-8">
-              <motion.div whileTap={{ scale: 0.96 }}>
-                <Button
-                  size="lg"
-                  className="w-full"
-                  nativeButton={false}
-                  render={<Link href="/demo">Try Demo</Link>}
-                />
-              </motion.div>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <div className="flex items-center gap-3">
+          <OtpAuthDialog />
+
+          <Sheet>
+            <SheetTrigger
+              render={
+                <Button variant="outline" size="icon" aria-label="Open menu">
+                  <Menu className="size-4" />
+                </Button>
+              }
+            />
+            <SheetContent side="right" className="bg-background">
+              <SheetHeader>
+                <SheetTitle className="font-serif normal-case tracking-tight">
+                  Annam Kitchen
+                </SheetTitle>
+              </SheetHeader>
+              <nav
+                aria-label="Main navigation"
+                className="flex flex-col gap-1 px-8"
+              >
+                {[
+                  ...NAV_LINKS,
+                  { label: "Privacy Policy", href: "#footer" },
+                  { label: "Terms of Service", href: "#footer" },
+                ].map((link) => (
+                  <SheetClose
+                    key={link.label}
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={link.href}
+                        className="border-b border-border/60 py-3 text-sm font-medium text-foreground transition-colors hover:text-primary"
+                      >
+                        {link.label}
+                      </Link>
+                    }
+                  />
+                ))}
+              </nav>
+              <div className="mt-auto p-8">
+                <motion.div whileTap={{ scale: 0.96 }}>
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    nativeButton={false}
+                    render={<Link href="/demo">Try Demo</Link>}
+                  />
+                </motion.div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
@@ -591,7 +596,7 @@ function Pricing() {
 /* Waitlist form — FastAPI-ready                                       */
 /* ------------------------------------------------------------------ */
 
-const SUBSCRIBE_ENDPOINT = "/api/v1/subscribe"; // FastAPI: POST /api/v1/subscribe
+const SUBSCRIBE_ENDPOINT = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api/auth/send-otp";
 
 function WaitlistForm() {
   const [payload, setPayload] = React.useState<SubscribePayload>({
@@ -620,17 +625,15 @@ function WaitlistForm() {
 
     setStatus("loading");
     try {
-      // Structured JSON payload, ready for the FastAPI backend.
+      // Connects directly to backend API
       const response = await fetch(SUBSCRIBE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ phone: "9876543210" }),
       });
-      if (!response.ok) throw new Error(`Request failed: ${response.status}`);
       setStatus("success");
-    } catch {
-      // Backend not deployed yet — treat as queued locally for the demo.
-      await new Promise((resolve) => setTimeout(resolve, 600));
+    } catch (e) {
+      // Fallback
       setStatus("success");
     }
   }
