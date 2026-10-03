@@ -57,13 +57,12 @@ http://localhost:5000
 
 ## Backend routes
 
-- GET /
-- GET /about
-- GET /dashboard
-- GET /health
-- POST /auth/login
-- POST /auth/register
-- POST /auth/logout
+The frontend ↔ backend contract (request/response shapes, what is implemented
+vs. planned) lives in [docs/api.md](docs/api.md).
+
+- POST /api/waitlist — stores signups in SQLite at `backend/instance/annam.db`
+- POST /api/auth/login, /api/auth/register, /api/auth/logout (stubs)
+- GET /, /about, /dashboard (demo)
 
 ## Git hygiene
 

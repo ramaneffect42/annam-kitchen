@@ -1,8 +1,22 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 /**
- * Utility for making API requests to the Annam Kitchen Express Backend add
+ * Client for the Annam Kitchen Flask backend.
+ * The request/response contract is documented in docs/api.md.
  */
+
+export type ApiResponse<T = undefined> = {
+  status: 'success' | 'error';
+  message: string;
+  data?: T;
+};
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 export async function apiRequest<T = any>(
   endpoint: string,
   options: {
@@ -21,24 +35,51 @@ export async function apiRequest<T = any>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError("We couldn't reach our servers. Please check your connection and try again.", 0);
+  }
 
-  const data = await response.json();
+  // The backend always answers with JSON, but proxies and crashes may not.
+  const data = await response.json().catch(() => null);
 
-  if (!response.ok) {
-    throw new Error(data.message || 'API Request failed');
+  if (!response.ok || !data) {
+    throw new ApiError(data?.message || 'Something went wrong. Please try again.', response.status);
   }
 
   return data;
 }
 
-// Dedicated API service methods
+export type WaitlistPayload = {
+  full_name: string;
+  email: string;
+  plan_interest: string;
+  source: string;
+};
+
+export type WaitlistEntry = {
+  full_name: string;
+  email: string;
+  plan_interest: string;
+  already_registered: boolean;
+};
+
 export const api = {
-  // Auth API
+  // Waitlist API
+  joinWaitlist: (payload: WaitlistPayload) =>
+    apiRequest<ApiResponse<WaitlistEntry>>('/api/waitlist', {
+      method: 'POST',
+      body: payload,
+    }),
+
+  // Phone OTP auth — NOT implemented by the backend yet (see docs/api.md,
+  // "Planned"). These calls currently fail with a 404 error message.
   sendOtp: (phone: string) =>
     apiRequest('/api/auth/send-otp', { method: 'POST', body: { phone } }),
 
@@ -46,39 +87,5 @@ export const api = {
     apiRequest('/api/auth/verify-otp', {
       method: 'POST',
       body: { phone, code, name },
-    }),
-
-  // Menu API
-  getMenu: () => apiRequest('/api/menu', { method: 'GET' }),
-
-  // Order API
-  createOrder: (
-    items: Array<{ menuItemId: string; quantity: number }>,
-    addressSnapshot: { street: string; city: string; postalCode: string },
-    token: string
-  ) =>
-    apiRequest('/api/orders', {
-      method: 'POST',
-      body: { items, addressSnapshot },
-      token,
-    }),
-
-  getOrderById: (orderId: string, token: string) =>
-    apiRequest(`/api/orders/${orderId}`, { method: 'GET', token }),
-
-  // Payment API
-  verifyPayment: (
-    payload: {
-      orderId: string;
-      razorpayOrderId: string;
-      razorpayPaymentId: string;
-      razorpaySignature: string;
-    },
-    token: string
-  ) =>
-    apiRequest('/api/payments/verify', {
-      method: 'POST',
-      body: payload,
-      token,
     }),
 };
