@@ -57,9 +57,10 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { api } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
-/* Types — FastAPI-ready payloads                                      */
+/* Types                                                                */
 /* ------------------------------------------------------------------ */
 
 interface SubscribePayload {
@@ -593,10 +594,8 @@ function Pricing() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Waitlist form — FastAPI-ready                                       */
+/* Waitlist form                                                       */
 /* ------------------------------------------------------------------ */
-
-const SUBSCRIBE_ENDPOINT = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000") + "/api/auth/send-otp";
 
 function WaitlistForm() {
   const [payload, setPayload] = React.useState<SubscribePayload>({
@@ -607,6 +606,7 @@ function WaitlistForm() {
   });
   const [status, setStatus] = React.useState<FormStatus>("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [alreadyRegistered, setAlreadyRegistered] = React.useState(false);
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email);
 
@@ -625,16 +625,18 @@ function WaitlistForm() {
 
     setStatus("loading");
     try {
-      // Connects directly to backend API
-      const response = await fetch(SUBSCRIBE_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: "9876543210" }),
+      const res = await api.joinWaitlist({
+        ...payload,
+        full_name: payload.full_name.trim(),
+        email: payload.email.trim(),
       });
+      setAlreadyRegistered(Boolean(res.data?.already_registered));
       setStatus("success");
     } catch (e) {
-      // Fallback
-      setStatus("success");
+      setErrorMessage(
+        e instanceof Error ? e.message : "Something went wrong. Please try again."
+      );
+      setStatus("error");
     }
   }
 
@@ -648,7 +650,9 @@ function WaitlistForm() {
       >
         <CheckCircle2 className="size-10 text-primary" aria-hidden="true" />
         <h3 className="font-serif text-2xl font-semibold text-foreground">
-          You&apos;re on the list!
+          {alreadyRegistered
+            ? "You're already on the list!"
+            : "You're on the list!"}
         </h3>
         <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">
           Thanks, {payload.full_name.split(" ")[0]}. We&apos;ll email you at{" "}

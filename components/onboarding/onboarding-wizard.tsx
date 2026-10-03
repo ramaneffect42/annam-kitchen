@@ -26,32 +26,51 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LoadingOverlay } from "@/components/onboarding/loading-overlay"
 import { ResultsScreen } from "@/components/onboarding/results-screen"
+import type { Diet } from "@/lib/meal-plans"
+import {
+  LIMITS,
+  inRange,
+  toAge,
+  toHeightCm,
+  toWeightKg,
+  type Activity,
+  type Goal,
+  type Sex,
+} from "@/lib/nutrition"
 
 export type WizardData = {
-  diet: string | null
+  diet: Diet | null
+  sex: Sex | null
   age: string
   height: string
+  heightInches: string
   heightUnit: "cm" | "ft"
   weight: string
   weightUnit: "kg" | "lbs"
-  goal: string | null
+  goal: Goal | null
   allergies: string[]
-  activity: string | null
+  activity: Activity | null
 }
 
 const TOTAL_STEPS = 5
 
-const dietOptions = [
+const dietOptions: { value: Diet; label: string; desc: string; icon: typeof Leaf }[] = [
   { value: "vegetarian", label: "Vegetarian", desc: "Plant-forward with dairy", icon: Leaf },
   { value: "non-vegetarian", label: "Non-Vegetarian", desc: "All proteins on the menu", icon: Drumstick },
   { value: "eggetarian", label: "Eggetarian", desc: "Vegetarian plus eggs", icon: Egg },
   { value: "vegan", label: "Vegan", desc: "100% plant-based", icon: Sprout },
 ]
 
-const goalOptions = [
+const goalOptions: { value: Goal; label: string; desc: string; icon: typeof Leaf }[] = [
   { value: "weight-loss", label: "Weight Loss & Lean Out", desc: "Calorie-smart, high-satiety meals", icon: Flame },
   { value: "muscle", label: "Muscle Building", desc: "Protein-dense, performance fuel", icon: Dumbbell },
   { value: "wellness", label: "Everyday Energy & Wellness", desc: "Balanced nutrition for daily life", icon: Sun },
+]
+
+const sexOptions: { value: Sex; label: string }[] = [
+  { value: "female", label: "Female" },
+  { value: "male", label: "Male" },
+  { value: "unspecified", label: "Prefer not to say" },
 ]
 
 const allergyOptions = [
@@ -63,7 +82,7 @@ const allergyOptions = [
   "No Restrictions",
 ]
 
-const activityOptions = [
+const activityOptions: { value: Activity; label: string; desc: string; icon: typeof Leaf }[] = [
   { value: "sedentary", label: "Sedentary", desc: "Desk job, light movement", icon: Armchair },
   { value: "moderate", label: "Moderately Active", desc: "Regular walks, light workouts", icon: Footprints },
   { value: "very-active", label: "Very Active", desc: "Gym, sports, high output", icon: Zap },
@@ -87,8 +106,10 @@ export function OnboardingWizard() {
   const [phase, setPhase] = useState<"form" | "loading" | "results">("form")
   const [data, setData] = useState<WizardData>({
     diet: null,
+    sex: null,
     age: "",
     height: "",
+    heightInches: "",
     heightUnit: "cm",
     weight: "",
     weightUnit: "kg",
@@ -114,12 +135,42 @@ export function OnboardingWizard() {
     })
   }
 
+  const changeHeightUnit = (unit: "cm" | "ft") => {
+    if (unit === data.heightUnit) return
+    const cm = toHeightCm(data.height, data.heightUnit, data.heightInches)
+    if (cm === null) {
+      setData((prev) => ({ ...prev, heightUnit: unit, height: "", heightInches: "" }))
+    } else if (unit === "ft") {
+      const totalInches = Math.round(cm / 2.54)
+      setData((prev) => ({
+        ...prev,
+        heightUnit: unit,
+        height: String(Math.floor(totalInches / 12)),
+        heightInches: String(totalInches % 12),
+      }))
+    } else {
+      setData((prev) => ({ ...prev, heightUnit: unit, height: String(Math.round(cm)), heightInches: "" }))
+    }
+  }
+
+  const changeWeightUnit = (unit: "kg" | "lbs") => {
+    if (unit === data.weightUnit) return
+    const kg = toWeightKg(data.weight, data.weightUnit)
+    const weight = kg === null ? "" : String(Math.round(unit === "kg" ? kg : kg / 0.45359237))
+    setData((prev) => ({ ...prev, weightUnit: unit, weight }))
+  }
+
+  const ageValid = inRange(toAge(data.age), LIMITS.age)
+  const heightValid = inRange(toHeightCm(data.height, data.heightUnit, data.heightInches), LIMITS.heightCm)
+  const weightValid = inRange(toWeightKg(data.weight, data.weightUnit), LIMITS.weightKg)
+  const heightTouched = data.height.trim() !== "" || data.heightInches.trim() !== ""
+
   const stepValid = (() => {
     switch (step) {
       case 0:
         return data.diet !== null
       case 1:
-        return data.age.trim() !== "" && data.height.trim() !== "" && data.weight.trim() !== ""
+        return data.sex !== null && ageValid && heightValid && weightValid
       case 2:
         return data.goal !== null
       case 3:
@@ -225,37 +276,104 @@ export function OnboardingWizard() {
                 >
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-2">
+                      <Label id="sex-label">Sex</Label>
+                      <div className="flex flex-wrap gap-2" role="group" aria-labelledby="sex-label">
+                        {sexOptions.map((opt) => {
+                          const selected = data.sex === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => update("sex", opt.value)}
+                              aria-pressed={selected}
+                              className={cn(
+                                "min-h-12 rounded-full border px-5 text-sm font-medium transition-colors",
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-card text-foreground hover:border-primary/50",
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Used only to estimate your calorie needs.</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
                       <Label htmlFor="age">Age</Label>
                       <Input
                         id="age"
                         type="number"
                         inputMode="numeric"
-                        min={10}
-                        max={100}
+                        min={LIMITS.age.min}
+                        max={LIMITS.age.max}
                         placeholder="e.g. 29"
                         className="min-h-12 text-base"
                         value={data.age}
+                        aria-invalid={data.age !== "" && !ageValid}
                         onChange={(e) => update("age", e.target.value)}
                       />
+                      {data.age !== "" && !ageValid && (
+                        <FieldHint>
+                          Enter a whole number between {LIMITS.age.min} and {LIMITS.age.max}.
+                        </FieldHint>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="height">Height</Label>
                       <div className="flex gap-2">
-                        <Input
-                          id="height"
-                          type="number"
-                          inputMode="decimal"
-                          placeholder={data.heightUnit === "cm" ? "e.g. 172" : "e.g. 5.7"}
-                          className="min-h-12 flex-1 text-base"
-                          value={data.height}
-                          onChange={(e) => update("height", e.target.value)}
-                        />
+                        {data.heightUnit === "cm" ? (
+                          <Input
+                            id="height"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="e.g. 172"
+                            className="min-h-12 flex-1 text-base"
+                            value={data.height}
+                            aria-invalid={heightTouched && !heightValid}
+                            onChange={(e) => update("height", e.target.value)}
+                          />
+                        ) : (
+                          <>
+                            <Input
+                              id="height"
+                              type="number"
+                              inputMode="numeric"
+                              placeholder="ft"
+                              aria-label="Height, feet"
+                              className="min-h-12 min-w-0 flex-1 text-base"
+                              value={data.height}
+                              aria-invalid={heightTouched && !heightValid}
+                              onChange={(e) => update("height", e.target.value)}
+                            />
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={11}
+                              placeholder="in"
+                              aria-label="Height, inches"
+                              className="min-h-12 min-w-0 flex-1 text-base"
+                              value={data.heightInches}
+                              aria-invalid={heightTouched && !heightValid}
+                              onChange={(e) => update("heightInches", e.target.value)}
+                            />
+                          </>
+                        )}
                         <UnitToggle
                           options={["cm", "ft"]}
                           value={data.heightUnit}
-                          onChange={(v) => update("heightUnit", v as "cm" | "ft")}
+                          onChange={(v) => changeHeightUnit(v as "cm" | "ft")}
                         />
                       </div>
+                      {heightTouched && !heightValid && (
+                        <FieldHint>
+                          {data.heightUnit === "cm"
+                            ? `Enter a height between ${LIMITS.heightCm.min} and ${LIMITS.heightCm.max} cm.`
+                            : "Enter feet and inches (0–11), e.g. 5 ft 7 in."}
+                        </FieldHint>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2">
                       <Label htmlFor="weight">Current weight</Label>
@@ -267,14 +385,22 @@ export function OnboardingWizard() {
                           placeholder={data.weightUnit === "kg" ? "e.g. 74" : "e.g. 163"}
                           className="min-h-12 flex-1 text-base"
                           value={data.weight}
+                          aria-invalid={data.weight !== "" && !weightValid}
                           onChange={(e) => update("weight", e.target.value)}
                         />
                         <UnitToggle
                           options={["kg", "lbs"]}
                           value={data.weightUnit}
-                          onChange={(v) => update("weightUnit", v as "kg" | "lbs")}
+                          onChange={(v) => changeWeightUnit(v as "kg" | "lbs")}
                         />
                       </div>
+                      {data.weight !== "" && !weightValid && (
+                        <FieldHint>
+                          {data.weightUnit === "kg"
+                            ? `Enter a weight between ${LIMITS.weightKg.min} and ${LIMITS.weightKg.max} kg.`
+                            : `Enter a weight between ${Math.round(LIMITS.weightKg.min / 0.45359237)} and ${Math.round(LIMITS.weightKg.max / 0.45359237)} lbs.`}
+                        </FieldHint>
+                      )}
                     </div>
                   </div>
                 </StepShell>
@@ -420,6 +546,10 @@ function StepShell({
       {children}
     </section>
   )
+}
+
+function FieldHint({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs text-destructive">{children}</p>
 }
 
 function SelectCard({

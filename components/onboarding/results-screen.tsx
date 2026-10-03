@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Link from "next/link"
 import { AnimatePresence, motion } from "framer-motion"
 import {
@@ -16,19 +16,27 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { WizardData } from "@/components/onboarding/onboarding-wizard"
+import { PLAN_DISHES, RESTRICTION_TAG, filterDishes, recommendPlan, type PlanId } from "@/lib/meal-plans"
+import { calculateTargets, toAge, toHeightCm, toWeightKg, type DailyTargets } from "@/lib/nutrition"
 
-type Dish = { name: string; meta: string }
+const DISHES_SHOWN = 3
 
 type Plan = {
-  id: string
+  id: PlanId
   name: string
   tagline: string
   target: string
   icon: typeof Briefcase
   highlights: string[]
-  dishes: Dish[]
-  vegDishes: Dish[]
-  accent: boolean
+}
+
+function targetsFor(data: WizardData): DailyTargets | null {
+  const age = toAge(data.age)
+  const heightCm = toHeightCm(data.height, data.heightUnit, data.heightInches)
+  const weightKg = toWeightKg(data.weight, data.weightUnit)
+  if (age === null || heightCm === null || weightKg === null) return null
+  if (!data.sex || !data.goal || !data.activity) return null
+  return calculateTargets({ sex: data.sex, age, heightCm, weightKg, goal: data.goal, activity: data.activity })
 }
 
 const PLANS: Plan[] = [
@@ -39,17 +47,6 @@ const PLANS: Plan[] = [
     target: "Busy IT & corporate professionals",
     icon: Briefcase,
     highlights: ["2 meals/day — lunch + dinner", "Balanced macros, portion-controlled", "Zero prep, delivered ready to eat"],
-    dishes: [
-      { name: "Herb-Grilled Fish & Millet Pulao", meta: "480 kcal · 34g protein" },
-      { name: "Chicken Curry with Jeera Rice", meta: "520 kcal · 32g protein" },
-      { name: "Rajma Power Bowl with Brown Rice", meta: "540 kcal · 22g protein" },
-    ],
-    vegDishes: [
-      { name: "Paneer Tikka Quinoa Bowl", meta: "520 kcal · 28g protein" },
-      { name: "Veg Kofta & Millet Pulao", meta: "470 kcal · 20g protein" },
-      { name: "Rajma Power Bowl with Brown Rice", meta: "540 kcal · 22g protein" },
-    ],
-    accent: false,
   },
   {
     id: "macro-fit",
@@ -58,17 +55,6 @@ const PLANS: Plan[] = [
     target: "Gym-goers & athletes",
     icon: Dumbbell,
     highlights: ["3 protein-dense meals + 1 post-workout snack", "Exact calorie & macro breakdown per meal", "Chef-crafted for training days"],
-    dishes: [
-      { name: "Grilled Chicken Macro Plate", meta: "610 kcal · 46g protein" },
-      { name: "Egg-White Bhurji Wrap", meta: "430 kcal · 32g protein" },
-      { name: "Post-Workout Peanut Chikki Shake", meta: "280 kcal · 24g protein" },
-    ],
-    vegDishes: [
-      { name: "High-Protein Soya Tikka Plate", meta: "580 kcal · 42g protein" },
-      { name: "Paneer Bhurji Protein Wrap", meta: "450 kcal · 30g protein" },
-      { name: "Post-Workout Peanut Chikki Shake", meta: "280 kcal · 24g protein" },
-    ],
-    accent: true,
   },
   {
     id: "essential",
@@ -77,26 +63,17 @@ const PLANS: Plan[] = [
     target: "Students & seniors",
     icon: PiggyBank,
     highlights: ["Clean comfort-food staples", "Accessible daily rate", "Home-style, easy on digestion"],
-    dishes: [
-      { name: "Dal Tadka, Jeera Rice & Salad", meta: "460 kcal · 18g protein" },
-      { name: "Egg Curry with Phulka Rotis", meta: "440 kcal · 22g protein" },
-      { name: "Curd Rice with Pomegranate", meta: "380 kcal · 12g protein" },
-    ],
-    vegDishes: [
-      { name: "Dal Tadka, Jeera Rice & Salad", meta: "460 kcal · 18g protein" },
-      { name: "Veg Khichdi with Ghee & Papad", meta: "410 kcal · 14g protein" },
-      { name: "Curd Rice with Pomegranate", meta: "380 kcal · 12g protein" },
-    ],
-    accent: false,
   },
 ]
 
 export function ResultsScreen({ data }: { data: WizardData }) {
-  const [expanded, setExpanded] = useState<string | null>("macro-fit")
+  const targets = useMemo(() => targetsFor(data), [data])
+  const recommendedId = recommendPlan(data.goal, toAge(data.age))
+  const [expanded, setExpanded] = useState<string | null>(recommendedId)
   const [selected, setSelected] = useState<string | null>(null)
 
   const dietLabel = data.diet ? data.diet.replace("-", " ") : "custom"
-  const isVeg = data.diet === "vegetarian" || data.diet === "vegan"
+  const activeRestrictions = data.allergies.filter((a) => a in RESTRICTION_TAG)
 
   return (
     <main className="min-h-dvh w-full bg-background">
@@ -127,16 +104,65 @@ export function ResultsScreen({ data }: { data: WizardData }) {
               3 plans built for your {dietLabel} profile
             </h1>
             <p className="text-muted-foreground leading-relaxed">
-              Calibrated to your goal and activity level. Tap a plan to preview sample dishes.
+              {activeRestrictions.length > 0
+                ? `Sample dishes are filtered to be ${activeRestrictions.join(", ")}. `
+                : ""}
+              Tap a plan to preview sample dishes.
             </p>
           </motion.div>
         </header>
+
+        {/* Daily targets */}
+        {targets && (
+          <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            aria-labelledby="targets-heading"
+            className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 id="targets-heading" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Your daily targets
+              </h2>
+              <span className="font-mono text-xs text-muted-foreground">
+                maintenance ≈ {targets.tdee.toLocaleString("en-IN")} kcal
+              </span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-serif text-4xl font-semibold text-foreground tabular-nums">
+                {targets.calories.toLocaleString("en-IN")}
+              </span>
+              <span className="text-sm text-muted-foreground">kcal / day</span>
+            </div>
+            <dl className="grid grid-cols-3 gap-2">
+              {[
+                { label: "Protein", value: targets.proteinG },
+                { label: "Carbs", value: targets.carbsG },
+                { label: "Fat", value: targets.fatG },
+              ].map((macro) => (
+                <div key={macro.label} className="flex flex-col gap-0.5 rounded-xl bg-secondary px-3 py-2.5">
+                  <dt className="text-xs text-muted-foreground">{macro.label}</dt>
+                  <dd className="font-mono text-base font-semibold text-secondary-foreground tabular-nums">
+                    {macro.value}g
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Estimated with the Mifflin-St Jeor equation from your age, height, weight, and activity level.
+              Not medical advice — check with a doctor or dietitian if you have a health condition.
+            </p>
+          </motion.section>
+        )}
 
         {/* Plan cards */}
         <div className="flex flex-col gap-4">
           {PLANS.map((plan, i) => {
             const isOpen = expanded === plan.id
             const isSelected = selected === plan.id
+            const isRecommended = plan.id === recommendedId
+            const dishes = filterDishes(PLAN_DISHES[plan.id], data.diet, data.allergies).slice(0, DISHES_SHOWN)
             return (
               <motion.article
                 key={plan.id}
@@ -147,7 +173,7 @@ export function ResultsScreen({ data }: { data: WizardData }) {
                   "overflow-hidden rounded-2xl border bg-card transition-colors",
                   isSelected
                     ? "border-primary ring-2 ring-primary"
-                    : plan.accent
+                    : isRecommended
                       ? "border-primary/40"
                       : "border-border",
                 )}
@@ -161,16 +187,17 @@ export function ResultsScreen({ data }: { data: WizardData }) {
                   <span
                     className={cn(
                       "flex size-11 shrink-0 items-center justify-center rounded-xl",
-                      plan.accent ? "bg-primary text-primary-foreground" : "bg-secondary text-primary",
+                      isRecommended ? "bg-primary text-primary-foreground" : "bg-secondary text-primary",
                     )}
                   >
                     <plan.icon className="size-5" />
                   </span>
                   <span className="flex flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-2">
-                      <span className="font-serif text-lg font-semibold leading-snug text-foreground text-balance">
-                        {plan.name}
-                      </span>
+                    {isRecommended && (
+                      <Badge className="mb-1 w-fit">Recommended for you</Badge>
+                    )}
+                    <span className="font-serif text-lg font-semibold leading-snug text-foreground text-balance">
+                      {plan.name}
                     </span>
                     <span className="text-sm font-medium text-primary">{plan.tagline}</span>
                     <span className="text-sm text-muted-foreground">{plan.target}</span>
@@ -206,17 +233,26 @@ export function ResultsScreen({ data }: { data: WizardData }) {
                           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Sample daily dishes
                           </p>
-                          <ul className="flex flex-col gap-2">
-                            {(isVeg ? plan.vegDishes : plan.dishes).map((dish) => (
-                              <li
-                                key={dish.name}
-                                className="flex items-center justify-between gap-3 rounded-xl bg-secondary px-4 py-3"
-                              >
-                                <span className="text-sm font-medium text-secondary-foreground">{dish.name}</span>
-                                <span className="shrink-0 font-mono text-xs text-muted-foreground">{dish.meta}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          {dishes.length > 0 ? (
+                            <ul className="flex flex-col gap-2">
+                              {dishes.map((dish) => (
+                                <li
+                                  key={dish.name}
+                                  className="flex items-center justify-between gap-3 rounded-xl bg-secondary px-4 py-3"
+                                >
+                                  <span className="text-sm font-medium text-secondary-foreground">{dish.name}</span>
+                                  <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                                    {dish.kcal} kcal · {dish.proteinG}g protein
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="rounded-xl bg-secondary px-4 py-3 text-sm text-secondary-foreground">
+                              None of this plan&apos;s sample dishes fit all your restrictions yet — our chefs
+                              will build a custom menu for you.
+                            </p>
+                          )}
                         </div>
                         <motion.div whileTap={{ scale: 0.98 }}>
                           <Button
