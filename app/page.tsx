@@ -107,6 +107,7 @@ const NAV_LINKS = [
   { label: "Features", href: "#features" },
   { label: "Pricing", href: "#pricing" },
   { label: "About Us", href: "#about" },
+  { label: "AI Plan Finder", href: "/plan-finder" },
   { label: "Contact Us", href: "#waitlist" },
 ];
 
@@ -531,6 +532,15 @@ function Pricing() {
           <p className="mt-3 leading-relaxed text-muted-foreground">
             Transparent per-meal pricing. Pause, swap, or cancel anytime.
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Not sure which fits?{" "}
+            <Link
+              href="/plan-finder"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Let our AI Plan Finder pick for you
+            </Link>
+          </p>
         </motion.div>
 
         <div className="grid gap-6 md:grid-cols-3">
@@ -607,6 +617,14 @@ function WaitlistForm() {
   const [status, setStatus] = React.useState<FormStatus>("idle");
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [alreadyRegistered, setAlreadyRegistered] = React.useState(false);
+
+  // Pre-select the plan when arriving from the Plan Finder (/?plan=...#waitlist).
+  React.useEffect(() => {
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    if (plan && PLANS.some((p) => p.name === plan)) {
+      setPayload((p) => ({ ...p, plan_interest: plan }));
+    }
+  }, []);
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email);
 

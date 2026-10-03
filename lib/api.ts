@@ -70,12 +70,51 @@ export type WaitlistEntry = {
   already_registered: boolean;
 };
 
+export type PlanId = 'workweek' | 'macro-fit' | 'essential';
+
+export type PlanProfile = {
+  age: number;
+  sex: 'female' | 'male' | 'unspecified';
+  height_cm: number;
+  weight_kg: number;
+  goal: 'weight-loss' | 'muscle' | 'wellness';
+  activity: 'sedentary' | 'moderate' | 'very-active';
+  workouts_per_week: number;
+  diet: 'vegetarian' | 'non-vegetarian' | 'eggetarian' | 'vegan';
+  occupation: 'student' | 'professional' | 'retired' | 'other';
+  budget: 'under-150' | '150-300' | '300-500' | '500-plus';
+  meals_per_day: number;
+  restrictions: Array<'dairy' | 'gluten' | 'nuts' | 'soy' | 'low-sodium'>;
+};
+
+export type PlanPrediction = {
+  prediction_id: number;
+  plan: PlanId;
+  confidence: number;
+  probabilities: Record<PlanId, number>;
+  reasons: Array<{ feature: string; text: string; impact: number }>;
+  model: { version: string; trained_at: string; real_samples: number };
+};
+
 export const api = {
   // Waitlist API
   joinWaitlist: (payload: WaitlistPayload) =>
     apiRequest<ApiResponse<WaitlistEntry>>('/api/waitlist', {
       method: 'POST',
       body: payload,
+    }),
+
+  // Plan finder (ML recommendation)
+  predictPlan: (profile: PlanProfile) =>
+    apiRequest<ApiResponse<PlanPrediction>>('/api/plan-finder/predict', {
+      method: 'POST',
+      body: profile,
+    }),
+
+  recordPlanChoice: (predictionId: number, plan: PlanId) =>
+    apiRequest<ApiResponse>(`/api/plan-finder/predictions/${predictionId}/choice`, {
+      method: 'POST',
+      body: { plan },
     }),
 
   // Phone OTP auth — NOT implemented by the backend yet (see docs/api.md,

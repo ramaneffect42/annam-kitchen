@@ -61,6 +61,8 @@ The frontend ↔ backend contract (request/response shapes, what is implemented
 vs. planned) lives in [docs/api.md](docs/api.md).
 
 - POST /api/waitlist — stores signups in SQLite at `backend/instance/annam.db`
+- POST /api/plan-finder/predict, POST /api/plan-finder/predictions/:id/choice —
+  ML plan recommendation for the `/plan-finder` page (see [docs/ml.md](docs/ml.md))
 - POST /api/auth/login, /api/auth/register, /api/auth/logout (stubs)
 - GET /, /about, /dashboard (demo)
 

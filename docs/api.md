@@ -51,6 +51,66 @@ Responses:
 | `200` | Email already on the list | `{ ..., already_registered: true }` |
 | `400` | Validation failed | — (`message` says which field) |
 
+### `POST /api/plan-finder/predict`
+
+Predicts the best plan with the ML model (see [ml.md](ml.md)) and stores the
+prediction so the user's eventual choice can be used for retraining.
+
+Request (all fields required; `restrictions` may be empty):
+
+```json
+{
+  "age": 29,
+  "sex": "female",
+  "height_cm": 162.5,
+  "weight_kg": 58,
+  "goal": "muscle",
+  "activity": "very-active",
+  "workouts_per_week": 5,
+  "diet": "vegetarian",
+  "occupation": "professional",
+  "budget": "300-500",
+  "meals_per_day": 2,
+  "restrictions": ["nuts"]
+}
+```
+
+| Field | Allowed values |
+|---|---|
+| `age` | integer 13–100 |
+| `height_cm` / `weight_kg` | 120–230 / 30–250 |
+| `workouts_per_week` | integer 0–14 |
+| `meals_per_day` | integer 1–3 |
+| `sex` | `female`, `male`, `unspecified` |
+| `goal` | `weight-loss`, `muscle`, `wellness` |
+| `activity` | `sedentary`, `moderate`, `very-active` |
+| `diet` | `vegetarian`, `non-vegetarian`, `eggetarian`, `vegan` |
+| `occupation` | `student`, `professional`, `retired`, `other` |
+| `budget` (₹/day) | `under-150`, `150-300`, `300-500`, `500-plus` |
+| `restrictions` | any of `dairy`, `gluten`, `nuts`, `soy`, `low-sodium` |
+
+`200` response `data`:
+
+```json
+{
+  "prediction_id": 42,
+  "plan": "macro-fit",
+  "confidence": 0.78,
+  "probabilities": { "workweek": 0.04, "macro-fit": 0.78, "essential": 0.18 },
+  "reasons": [{ "feature": "goal", "text": "Your goal is building muscle", "impact": 1.9 }],
+  "model": { "version": "1", "trained_at": "2026-10-03T16:42:50+00:00", "real_samples": 0 }
+}
+```
+
+Plan ids: `workweek`, `macro-fit`, `essential`. `400` if any field is invalid.
+
+### `POST /api/plan-finder/predictions/:id/choice`
+
+Records the plan the user actually chose — this becomes real training data.
+
+Request: `{ "plan": "essential" }`. Responses: `200`, `400` (bad plan),
+`404` (unknown prediction id).
+
 ### `POST /api/auth/login`, `POST /api/auth/register`, `POST /api/auth/logout`
 
 Placeholder stubs: they validate required fields and echo them back, but there

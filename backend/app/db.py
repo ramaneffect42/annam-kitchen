@@ -13,6 +13,17 @@ CREATE TABLE IF NOT EXISTS waitlist (
     source TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS plan_predictions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_json TEXT NOT NULL,
+    predicted_plan TEXT NOT NULL,
+    probabilities_json TEXT NOT NULL,
+    model_version TEXT NOT NULL,
+    chosen_plan TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    chosen_at TEXT
+);
 """
 
 
